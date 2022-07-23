@@ -17,9 +17,8 @@ class Game
   end
 
   def initialize
+    @game_count = 27
     @correct_chars = []
-    @game_count = 5
-    @finished = false
     @answer = make_random_word
   end
 
@@ -47,7 +46,7 @@ class Game
 
   # ゲームをセーブして終了する関数
   def save_game
-    File.open('save.dump', 'w') { |f| f.write(YAML.dump(self)) }
+    YAML.dump(self, File.open('save.yml', 'w'))
     puts 'Saved'
     exit
   end
@@ -70,9 +69,30 @@ class Game
         break if input.length == 1 && alphabet?(input)
 
         puts 'Invalid input'
+        show_correct_chars(@correct_chars)
       end
     end
     input
+  end
+
+  # 文字列の判定をする関数
+  def check_decision(letter)
+    if @answer.include?(letter)
+      if @correct_chars.include?(letter)
+        puts "#{letter} is already exists"
+      else
+        @correct_chars.push(letter)
+        puts 'Correct!'
+      end
+    else
+      @game_count -= 1
+      puts 'Incorrect'
+    end
+  end
+
+  # すべての正解の文字が出揃ったか判定する関数
+  def check_all_correct
+    @answer.split('').all? { |chr| @correct_chars.include?(chr) }
   end
 
   # ゲームをプレイする関数
@@ -84,30 +104,19 @@ class Game
       # 文字を受け取り、適切なものか確認
       letter = validate_input
       # 文字が正解の単語の中に含まれていれば、配列に追加
-      if @answer.include?(letter)
-        if @correct_chars.include?(letter)
-          puts "#{letter} is already exists"
-        else
-          @correct_chars.push(letter)
-          puts 'Correct!'
-        end
-      else
-        @game_count -= 1
-        puts 'Incorrect'
-      end
+      check_decision(letter)
       # ゲームカウントが０もしくは答えが完成した場合、終了
       if @game_count.zero?
         puts 'Game over!'
+        puts "The answer is \"#{@answer}\""
         break
       end
-      if @answer == @correct_chars.join('')
-        puts "Correct! The answer is #{@answer}"
+      if check_all_correct
+        puts "Correct all! The answer is \"#{@answer}\""
         break
       end
     end
   end
-
-  attr_reader :finished
 
   private
 
@@ -132,17 +141,15 @@ loop do
   elsif players_select.downcase == 'load'
     puts 'Loading last game!'
     begin
-      game = YAML.load_file(File.read('save.dump'))
+      game = YAML.load_file(
+        'save.yml',
+        permitted_classes: [Game]
+      )
     rescue Errno::ENOENT
       puts 'There is no save data.'
     else
-      # ロードする場合、前回のゲームが終了したかどうか確認する
-      if game.finished
-        puts 'Previous game has been compleated. Please play new game!'
-      else
-        game.play
-        break
-      end
+      game.play
+      break
     end
   else
     puts 'Invalid input'
